@@ -1,4 +1,4 @@
-/ckage com.sankuai.meituan.poiop.similar.calculator;
+package com.sankuai.meituan.poiop.similar.calculator;
 
 import com.sankuai.meituan.poiop.similar.TermFreInformationVo;
 
@@ -330,8 +330,6 @@ public class TermGenerate{
 
     public static void main(String[] args) throws IOException {
 
-        String s = "我ai";
-        boolean b = s.matches("[a-zA-Z]");
 
         getPointName();
         getPointNameWordSet();
