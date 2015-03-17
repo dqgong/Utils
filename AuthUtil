@@ -1,0 +1,140 @@
+package com.sankuai.meituan.poiop.util;
+
+import org.bouncycastle.util.encoders.Hex;
+import sun.misc.BASE64Decoder;
+import sun.misc.BASE64Encoder;
+
+import java.security.MessageDigest;
+import java.util.Calendar;
+import java.util.Locale;
+import java.util.TimeZone;
+
+/**
+ * 认证util
+ * User: gongdaoqi
+ * Date: 15-3-17
+ * Time: 下午6:20
+ * To change this template use File | Settings | File Templates.
+ */
+public class AuthUtil {
+
+    public static String authcode(String src, String op, String key, Long expire) {
+        Calendar c = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"), Locale.CHINA);
+
+        int ckey_length = 4;
+        String mkey = md5(key);
+        String keya = md5(mkey.substring(0,16));
+        String keyb = md5(mkey.substring(16,32));
+
+        String keyc = "";
+        if(op.equals("DECODE")){
+            keyc= src.substring(0,ckey_length) ;
+        }else if(op.equals("ENCODE")){
+            String x = md5(String.valueOf((c.getTimeInMillis() / 1000L)));
+            keyc = x.substring(x.length()-ckey_length);
+        }
+        String cryptkey = new StringBuilder().append(keya).append(md5(keya+keyc)).toString();
+        int key_len = cryptkey.length();
+
+        String string = "";
+        if(op.equals("DECODE")){
+            string= base64decode(src.substring(ckey_length));
+        }else if(op.equals("ENCODE")){
+            StringBuilder sb = new StringBuilder();
+            if(expire== null || expire<=0){
+                sb.append("0000000000");
+            }else{
+                sb.append(expire+ c.getTimeInMillis()/1000L);
+            }
+            string = sb.append(md5(src+keyb).substring(0, 16)).append(src).toString();
+        }
+
+        int string_len = string.length();
+
+        int[] box = new int[256];
+
+        for(int i = 0;i<box.length ;i++){
+            box[i] = i;
+        }
+        int[] randkey = new int[256];
+        for(int i = 0;i<= 255;i++){
+            randkey[i] = (int)(cryptkey.toCharArray()[i % key_len]);
+        }
+        for(int j = 0,i=0;i<= 255;i++){
+            j = (j + box[i] + randkey[i]) % 256;
+            int tmp = box[i];
+            box[i] = box[j];
+            box[j] = tmp;
+        }
+        String result = "";
+
+        for(int a = 0,j=0,i=0;i < string_len;i++){
+            a = (a+1) % 256;
+            j = (j+box[a]) % 256;
+            int tmp = box[a];
+            box[a] = box[j];
+            box[j] = tmp;
+            result += (char)( ((int)(string.charAt(i))) ^ (box[(box[a]+box[j])%256] ));
+        }
+        if(op.equals("DECODE")){
+            String t = result.substring(0, 10);
+            if(
+                    (t.equals("0000000000") || Long.parseLong(t) - c.getTimeInMillis()/1000L > 0)
+                            &&
+                            (result.substring(10, 26)).equals(md5(result.substring(26, result.length())+keyb).substring(0, 16))
+                    )
+            {
+                return result.substring(26);
+            }else{
+                return "";
+            }
+        }else if(op.equals("ENCODE")){
+            //do not cut the ending one or more '='
+            return keyc + base64encode(result);
+        }else{
+            return "";
+        }
+    }
+
+    //md5
+    private static String md5(String src) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("md5");
+            md.update(src.getBytes("UTF-8"));
+            return new String(Hex.encode(md.digest()), "UTF-8");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return "";
+    }
+
+    //base64 decode encode 不支持中文喔.如果要加密的参数要用中文就先urlencode吧.
+    private static String base64decode(String src){
+        try{
+            return new String(new BASE64Decoder().decodeBuffer(new String(src.getBytes("ISO-8859-1"))),"ISO-8859-1");
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+        return "";
+    }
+
+    private static String base64encode(String src){
+        try{
+            return new String(new BASE64Encoder().encode(src.getBytes("ISO-8859-1")).getBytes(),"ISO-8859-1");
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+        return "";
+    }
+    //main
+    public static void main(String [] ar){
+        String str = "username=123%40wltx.com&password=123&email=123%40wltx.com&agent=6ef213521da8e39b8557cf875c17adae&time=1226591369";
+//        String en = authcode(str,"ENCODE", "key", 0L);
+        String de = authcode("9f6b5vHna/mxMCdFl1oegbUmpgfImV91l+Y26QZjLhfpn/vE8kfIR01gyOuxmRI72w5MYRs2LKQeADSL\n" +
+                "8j8cWAVi+zEcbkYXAeWQj52P48yqny5sELh/LimlqMlixTq8pbBDeV9iVmN7hAwOAVS+IsIJJkux\n" +
+                "vFaQ2XyK1Fm3eZEGtZZXIj2wtgax73YW","DECODE", "key", 1L);
+//        System.out.println("en=" + en);
+        System.out.println("de=" + de);
+    }
+
+}
